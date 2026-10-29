@@ -3,11 +3,16 @@ import requests
 import threading
 import time
 import re
+from io import BytesIO
 
 # Function to read token from file
 def read_token_from_file(file_path):
-    with open(file_path, 'r') as file:
-        return file.read().strip()
+    try:
+        with open(file_path, 'r') as file:
+            return file.read().strip()
+    except FileNotFoundError:
+        print("Error: token.txt not found.")
+        exit(1)
 
 # Initialize bot with token
 BOT_TOKEN = read_token_from_file('token.txt')
@@ -20,31 +25,48 @@ OWNER_IDS = {2007860433}
 CHANNEL_URL = "https://t.me/mrinxdildos"
 
 # Delete existing webhook before polling
-bot.remove_webhook()
+try:
+    bot.remove_webhook()
+except Exception:
+    pass
 
 # Function to delete message after delay
 def delete_after_delay(chat_id, message_id):
     time.sleep(9)
-    bot.delete_message(chat_id, message_id)
+    try:
+        bot.delete_message(chat_id, message_id)
+    except Exception:
+        pass
 
 def check_user_membership(message):
     try:
+        # Ensure we have a valid user ID
+        if not message.from_user:
+            return False
+            
         user_status = bot.get_chat_member(REQUIRED_CHANNEL, message.from_user.id).status
         if user_status not in ["member", "administrator", "creator"]:
             markup = telebot.types.InlineKeyboardMarkup()
             markup.add(
-                telebot.types.InlineKeyboardButton("[➖ 𝟭𝗦𝗧 𝗝𝗢𝗜𝗡 𝗛𝗘𝗥𝗘 𝗧𝗢 𝗨𝗦𝗘 𝗠𝗘 ➖]", url=CHANNEL_URL, style="danger")
+                telebot.types.InlineKeyboardButton("[➖ 𝟭𝗦𝗧 𝗝𝗢𝗜𝗡 𝗛𝗘𝗥𝗘 𝗧𝗢 𝗨𝗦𝗘 𝗠𝗘 ➖]", url=CHANNEL_URL)
             )
             markup.add(
-                telebot.types.InlineKeyboardButton(text="[➖ | 𝗠 𝘅 𝗗™ 𝗔𝗟𝗟 𝗕𝗢𝗧𝗦 | ➖]", url=BOT_LIST, style="primary")
+                telebot.types.InlineKeyboardButton(text="[ |  𝗠 𝘅 𝗗™  𝗔𝗟𝗟 𝗕𝗢𝗧𝗦 | ➖]", url=BOT_LIST)
             )
             user_id = message.from_user.id
+            has_photo = False
             try:
                 photos = bot.get_user_profile_photos(user_id)
                 has_photo = photos.total_count > 0
             except Exception:
                 has_photo = False
-            caption_text = f"𝗛𝗜 👋 *{message.from_user.first_name}* \n\n‼ 🔒𝗠𝗥𝗶𝗡 𝘅 𝗗𝗶𝗟𝗗𝗢𝗦™ 𝗜𝗡𝗦𝗧𝗔𝗚𝗥𝗔𝗠 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗥 𝗕𝗢𝗧 𝗔𝗖𝗖𝗘𝗦𝗦 𝗗𝗘𝗡𝗜𝗘𝗗 ! 🔒 \n\n🔒 *𝗝𝗼𝗶𝗻 𝗼𝘂𝗿 𝗼𝗳𝗳𝗶𝗰𝗶𝗮𝗹 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝘂𝘀𝗲 𝘁𝗵𝗶𝘀 𝗯𝗼𝘁 !!* "
+
+            caption_text = (
+                f"𝗛𝗜 👋 *{message.from_user.first_name}* \n\n"
+                "‼ 🔒𝗠𝗥𝗶𝗡 𝘅 𝗗𝗶𝗟𝗗𝗢𝗦™ 𝗜𝗡𝗦𝗧𝗔𝗚𝗥𝗔𝗠 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥 𝗕𝗢𝗧 𝗔𝗖𝗖𝗘𝗦𝗦 𝗗𝗘𝗡𝗜𝗘𝗗 ! 🔒 \n\n"
+                "🔒 *𝗝𝗼𝗶𝗻 𝗼𝘂𝗿 𝗼𝗳𝗳𝗶𝗰𝗶𝗮𝗹 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝘂𝘀𝗲 𝘁𝗵𝗶𝘀 𝗯𝗼𝘁 !!*"
+            )
+            
             if has_photo:
                 try:
                     photo_file_id = photos.photos[0][0].file_id
@@ -72,16 +94,10 @@ def check_user_membership(message):
             return False
         return True
     except Exception as e:
-        markup = telebot.types.InlineKeyboardMarkup()
-        markup.add(
-            telebot.types.InlineKeyboardButton("[➖ 𝟭𝗦𝗧 𝗝𝗢𝗜𝗡 𝗛𝗘𝗥𝗘 𝗧𝗢 𝗨𝗦𝗘 𝗠𝗘  ➖]", url=CHANNEL_URL, style="primary")
-        )
-        bot.send_message(
-            message.chat.id,
-            f"Error checking membership: {str(e)}",
-            reply_markup=markup
-        )
-        return False
+        # If get_chat_member fails (e.g., bot isn't admin in channel), allow access or handle gracefully
+        # For now, we log it but allow the bot to continue to avoid blocking everyone if API glitches
+        print(f"Membership check error: {e}")
+        return True 
 
 # === START COMMAND ===
 @bot.message_handler(commands=['start'])
@@ -92,16 +108,16 @@ def send_welcome(message):
     user_id = message.from_user.id
 
     markup = telebot.types.InlineKeyboardMarkup()
-    button1 = telebot.types.InlineKeyboardButton(text="[➖ 𝗖𝗢𝗡𝗧𝗔𝗖𝗧 𝗢𝗪𝗡𝗘𝗥 ➖]", url=OWNER_URL, style="primary")
-    button2 = telebot.types.InlineKeyboardButton(text="[➖ 𝗠𝗔𝗜𝗡 𝗖𝗛𝗔𝗡𝗡𝗘𝗟 ➖]", url=CHANNEL_URL, style="danger")
-    button3 = telebot.types.InlineKeyboardButton(text="[➖ | 𝗠 𝘅 𝗗™ 𝗔𝗟𝗟 𝗕𝗢𝗧𝗦  | ➖]", url=BOT_LIST, style="success")
+    button1 = telebot.types.InlineKeyboardButton(text="[➖ 𝗖𝗢𝗡𝗧𝗔𝗖𝗧 𝗢𝗪𝗡𝗘𝗥 ➖]", url=OWNER_URL)
+    button2 = telebot.types.InlineKeyboardButton(text="[➖ 𝗠𝗔𝗶𝗡 𝗖𝗛𝗔𝗡𝗡𝗘𝗟 ➖]", url=CHANNEL_URL)
+    button3 = telebot.types.InlineKeyboardButton(text="[➖ | 𝗠 𝘅 𝗗™ 𝗔𝗟𝗟 𝗕𝗢𝗧𝗦  | ➖]", url=BOT_LIST)
     markup.add(button1)
     markup.add(button2)
     markup.add(button3)
 
     welcome_text = (
         "𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗠𝗥𝗶𝗡 𝘅 𝗗𝗶𝗟𝗗𝗢𝗦™ 𝗜𝗡𝗦𝗧𝗔𝗚𝗥𝗔𝗠 𝗩𝗜𝗗𝗘𝗢 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗥 𝗕𝗢𝗧\n\n"
-        " 📎 𝗣𝗹𝗲𝗮𝘀𝗲 𝘀𝗲𝗻𝗱 𝗮 𝘃𝗮𝗹𝗶𝗱 𝗜𝗻𝘀𝘁𝗮𝗴𝗿𝗮𝗺 𝗩𝗶𝗱𝗲𝗼 / 𝗥𝗲𝗲𝗹 𝗹𝗶𝗻𝗸, 𝗜 𝘄𝗶𝗹𝗹 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗶𝘁 𝗳𝗼𝗿 𝘆𝗼𝘂 👀 !\n\n"
+        " 📎 𝗣𝗹𝗲𝗮𝘀𝗲 𝘀𝗲𝗻𝗱 𝗮 𝘃𝗮𝗹𝗶𝗱 𝗜𝗻𝘀𝘁𝗮𝗴𝗿𝗮𝗺 𝗩𝗶𝗱𝗲𝗼 / 𝗥𝗲𝗲𝗹 𝗹𝗶𝗻𝗸, 𝗜 𝘄𝗶𝗹𝗹 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗶𝘁 𝗳𝗼𝗿 𝘆𝗼𝘂 👀  !!\n\n"
     )
 
     try:
@@ -145,85 +161,85 @@ def send_welcome(message):
             except Exception as e:
                 print(f"Failed to notify owner {owner_id}: {e}")
 
-# Regular expression to check if the message is a valid Instagram URL
-@bot.message_handler(func=lambda message: re.match(r"^(https?://)?(www\.)?instagram\.com/.*$", message.text))
+# Helper function to validate URL
+def is_instagram_url(text):
+    if not text:
+        return False
+    return bool(re.match(r"^(https?://)?(www\.)?instagram\.com/.*$", text))
+
+# Handle messages that might contain Instagram links
+@bot.message_handler(func=lambda message: is_instagram_url(message.text))
 def download_reel_with_caption(message):
     # Check membership
     if not check_user_membership(message):
         return
 
-    url = message.text
+    url = message.text.strip()
 
     # Send the processing message instantly
-    processing_msg = bot.reply_to(message, "⏳ 𝗣𝗿𝗼𝗰𝗲𝘀𝗶𝗻𝗴 𝘆𝗼𝗿 𝗿𝗲𝗾𝘂𝗲𝘁𝗲𝗱 𝗹𝗶𝗻𝗸......")
+    processing_msg = bot.reply_to(message, "⏳ 𝗣𝗿𝗼𝗰𝗲𝘀𝗶𝗻𝗴 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁𝗲𝗱 𝗹𝗶𝗻𝗸...........")
 
     try:
-        # === NEW API ===
-        api_url = f"https://instaapi.terabot.workers.dev/?url={url}"
-        response = requests.get(api_url)
+        # === UPDATED API WITH HEADERS TO FIX 403 ===
+        api_url = f"https://prenivapi.vercel.app/api/igdl?url={url}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        response = requests.get(api_url, headers=headers, timeout=15)
 
-        # Debug log
-        print(f"API Response: {response.status_code}, {response.text[:500]}")
-
-        # Initialize variables
         video_url = None
         thumbnail_url = None
-        caption = "No caption available."
 
         if response.status_code == 200:
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError:
+                bot.edit_message_text(
+                    "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗽𝗮𝗿𝘀𝗲 𝗔𝗣𝗜 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲. ‼",
+                    chat_id=message.chat.id,
+                    message_id=processing_msg.message_id
+                )
+                return
 
-            # New API returns data inside 'result' array
-            # IMPORTANT: The API might return multiple objects. 
-            # We need to loop through them to find the one with 'video_url'.
-            if 'result' in data and isinstance(data['result'], list) and len(data['result']) > 0:
+            # Parse based on structure: { "status": true, "data": { "media": [ ... ] } }
+            if data.get("status") and isinstance(data.get("data"), dict):
+                media_list = data["data"].get("media")
                 
-                found_video = False
-                for item in data['result']:
-                    # Extract video URL if present in this item
-                    if 'video_url' in item and item['video_url']:
-                        video_url = item['video_url']
-                        found_video = True
+                if isinstance(media_list, list) and len(media_list) > 0:
+                    first_media = media_list[0]
                     
-                    # Extract thumbnail URL if present
-                    if 'video_img' in item and item['video_img']:
-                        thumbnail_url = item['video_img']
+                    # Extract video URL
+                    if isinstance(first_media, dict):
+                        video_url = first_media.get("url")
+                        thumbnail_url = first_media.get("thumbnail")
 
-                    # Extract caption if present (usually in the first item)
-                    if 'caption' in item and item['caption']:
-                        caption = item['caption']
-
-                if not found_video:
-                    bot.reply_to(message, "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗠𝗶𝘀𝘀𝗶𝗻𝗴 𝗼𝗿 𝗶𝗻𝘃𝗮𝗹𝗶𝗱 𝘃𝗶𝗱𝗲𝗼 𝗨𝗥𝗟 𝗶𝗻 𝗔𝗣𝗜 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲.‼")
+                if not video_url:
+                    bot.edit_message_text(
+                        "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗡𝗼 𝘃𝗶𝗱𝗲𝗼 𝗨𝗥𝗹 𝗳𝗼𝘂𝗻𝗱 𝗶𝗻 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲. ‼",
+                        chat_id=message.chat.id,
+                        message_id=processing_msg.message_id
+                    )
                     return
             else:
-                bot.reply_to(message, "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗔𝗣𝗜 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲 𝗶𝘀 𝗲𝗺pty 𝗼𝗿 𝗶𝗻𝘃𝗮𝗹𝗶𝗱.‼")
+                bot.edit_message_text(
+                    "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗔𝗣𝗜 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲 𝗶𝘀 𝗲𝗺𝗽𝘁𝘆 𝗼𝗿 𝗶𝗻𝘃𝗮𝗹𝗶𝗱. ‼",
+                    chat_id=message.chat.id,
+                    message_id=processing_msg.message_id
+                )
                 return
         else:
-            bot.reply_to(message, f"‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗔𝗣𝗜 𝘃𝟐 𝗿𝗲𝘀𝗽𝗼𝗻𝗱𝗲𝗱 𝘄𝗶𝘁𝗵: {response.status_code}‼")
+            bot.edit_message_text(
+                f"‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗔𝗣𝗜 𝗲𝗿𝗿𝗼𝗿: {response.status_code} ‼",
+                chat_id=message.chat.id,
+                message_id=processing_msg.message_id
+            )
             return
 
-        # Ensure caption is a string and not None
-        if caption is None:
-            caption = "👀👀"
-
-        # Truncate caption to 500 characters (Telegram has a 1024-character limit for captions)
-        max_caption_length = 500
-        if len(caption) > max_caption_length:
-            caption = caption[:max_caption_length] + "..."
-
-        # Combine video and caption in one message
-        footer = "\n\n🎥 𝗛𝗲𝗿𝗲 𝗶𝘀 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁𝗲𝗱 𝗥𝗲𝗲𝗹 👀 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝗯𝘆 @instra_dwn_bymrin_bot ❤️\n\n"
-        combined_caption = f"{caption}{footer}"
-
-        # Ensure combined caption does not exceed 1024 characters
-        if len(combined_caption) > 1024:
-            caption = caption[:1024 - len(footer) - 3] + "..."
-            combined_caption = f"{caption}{footer}"
-
-        # Debug log for combined caption
-        print(f"Combined Caption: {combined_caption}")
-
+        # Use default caption
+        footer = "\n\n\n  🎥 𝗛𝗲𝗿𝗲 𝗶𝘀 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁𝗲𝗱 𝗥𝗲𝗲𝗹 👀 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝗯𝘆 @instra_dwn_bymrin_bot ❤️\n\n"
+        
         # Delete the processing message
         try:
             bot.delete_message(processing_msg.chat.id, processing_msg.message_id)
@@ -234,16 +250,22 @@ def download_reel_with_caption(message):
         progress_msg = bot.reply_to(message, "➖ 𝗩𝗶𝗱𝗲𝗼 𝗙𝗼𝘂𝗻𝗱 ! 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗶𝗻𝗴 ⤵ ")
         threading.Thread(target=delete_after_delay, args=(progress_msg.chat.id, progress_msg.message_id)).start()
 
-        # Encode combined caption to UTF-8 to avoid encoding issues
+        # Download video content first, then send as file
         try:
-            combined_caption = combined_caption.encode('utf-8').decode('utf-8')
-        except Exception as e:
-            print(f"Encoding error: {str(e)}")
-            combined_caption = "\n\n🎥 𝗛𝗲𝗿𝗲 𝗶𝘀 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁𝗲𝗱 𝗥𝗲𝗲𝗹 👀 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝗯𝘆 @instra_dwn_bymrin_bot ❤️\n\n"
-
-        # Send video with caption
-        try:
-            bot.send_video(message.chat.id, video_url, caption=combined_caption)
+            video_response = requests.get(video_url, headers=headers, timeout=30)
+            video_response.raise_for_status()
+            
+            # Create a bytes buffer
+            video_buffer = BytesIO(video_response.content)
+            video_buffer.name = 'instagram_video.mp4'
+            
+            # Send video from buffer
+            bot.send_video(
+                message.chat.id, 
+                video_buffer,
+                caption=footer,
+                supports_streaming=True
+            )
         except Exception as e:
             bot.reply_to(message, f"⚠️ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝘀𝗲𝗻𝗱 𝘃𝗶𝗱𝗲𝗼. 𝗘𝗿𝗿𝗼𝗿 : {str(e)}")
             return
@@ -253,13 +275,31 @@ def download_reel_with_caption(message):
             message.chat.id,
             "𝗜 𝗮𝗺 𝗿𝗲𝗮𝗱𝘆 𝗳𝗼𝗿 𝘆𝗼𝘂𝗿 𝗻𝗲𝘅𝘁 𝘃𝗶𝗱𝗲𝗼.... 𝗞𝗶𝗻𝗱𝗹𝘆 𝘀𝗲𝗻𝗱 𝗮 𝘃𝗮𝗹𝗶𝗱 𝗜𝗻𝘀𝘁𝗮𝗴𝗿𝗮𝗺 𝗩𝗶𝗱𝗲𝗼 / 𝗿𝗲𝗲𝗹 𝗹𝗶𝗻𝗸, 𝗜 𝘄𝗶𝗹𝗹 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗶𝘁 𝗳𝗼𝗿 𝘆𝗼𝘂 👀 \n\n[ 𝗕𝗢𝗧 𝗖𝗥𝗘𝗔𝗧𝗘𝗗 𝗕𝗬 > ー @M_o_Y_zZz ]"
         )
+        
     except requests.RequestException as e:
-        bot.reply_to(message, f"⚠️ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗰𝗼𝗻𝗻𝗲𝗰𝘁 𝘁𝗼 𝗦𝗲𝗿𝘃𝗲𝗿 ⚠️ : {str(e)}")
+        try:
+            bot.edit_message_text(
+                f"⚠️ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗰𝗼𝗻𝗻𝗲𝗰𝘁 𝘁𝗼 𝗦𝗲𝗿𝘃𝗲𝗿 ⚠️ : {str(e)}",
+                chat_id=message.chat.id,
+                message_id=processing_msg.message_id
+            )
+        except:
+            bot.reply_to(message, f"⚠️ 𝗦𝗲𝗿𝘃𝗲𝗿 𝗘𝗿𝗿𝗼𝗿: {str(e)}")
+            
     except Exception as e:
-        bot.reply_to(message, f"⚠️ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗽𝗿𝗼𝗰𝗲𝘀𝘀 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁 ⚠️  : {str(e)}")
+        try:
+            bot.edit_message_text(
+                f"️ ⚠️ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗽𝗿𝗼𝗰𝗲𝘀𝘀 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁 ⚠️  : {str(e)}",
+                chat_id=message.chat.id,
+                message_id=processing_msg.message_id
+            )
+        except:
+            bot.reply_to(message, f"️ ⚠️ 𝗘𝗿𝗿𝗼𝗿: {str(e)}")
 
-@bot.message_handler(func=lambda message: not re.match(r"^(https?://)?(www\.)?instagram\.com/.*$", message.text))
+# Catch-all for non-Instagram links to prevent spamming errors, but only if it's text
+@bot.message_handler(func=lambda message: message.text and not is_instagram_url(message.text))
 def ignore_message(message):
+    # Optional: You can send a hint here if you want
     pass
 
 if __name__ == '__main__':
