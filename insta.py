@@ -20,6 +20,9 @@ OWNER_URL = "https://t.me/M_o_y_zzz"
 OWNER_IDS = {2007860433}
 CHANNEL_URL = "https://t.me/mrinxdildos"
 
+# Matches Instagram URLs anywhere in the message and captures only the clean base URL (ignoring ?xtok=, ?igsh=, etc.)
+IG_URL_PATTERN = re.compile(r"(https?://(?:www\.)?instagram\.com/(?:reel|reels|p|tv|share/[a-zA-Z0-9_-]+)/[a-zA-Z0-9_-]+/?)")
+
 # Delete existing webhook before polling
 bot.remove_webhook()
 
@@ -149,14 +152,23 @@ def send_welcome(message):
             except Exception as e:
                 print(f"Failed to notify owner {owner_id}: {e}")
 
-# Regular expression to check if the message is a valid Instagram URL
-@bot.message_handler(func=lambda message: re.match(r"^(https?://)?(www\.)?instagram\.com/.*$", message.text))
+# Check if the message contains an Instagram URL
+@bot.message_handler(func=lambda message: bool(message.text and re.search(r"(https?://)?(www\.)?instagram\.com/", message.text)))
 def download_reel_with_caption(message):
     # Check membership
     if not check_user_membership(message):
         return
 
-    url = message.text.strip()
+    # 1. Clean the user's URL: strip ?xtok=, ?igsh=, and any extra text around the link
+    raw_text = message.text.strip()
+    match = IG_URL_PATTERN.search(raw_text)
+    if match:
+        url = match.group(1).rstrip('/')
+    else:
+        # Fallback: take the URL token and strip query parameters after '?'
+        url = raw_text.split('?')[0].rstrip('/')
+
+    print(f"Cleaned Instagram URL: {url}")
 
     # Send the processing message instantly
     processing_msg = bot.reply_to(message, "⏳ 𝗣𝗿𝗼𝗰𝗲𝘀𝗶𝗻𝗴 𝘆𝗼𝗿 𝗿𝗲𝗾𝘂𝗲𝘁𝗲𝗱 𝗹𝗶𝗻𝗸...........")
@@ -169,7 +181,7 @@ def download_reel_with_caption(message):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, timeout=25)
 
         # Debug log
         print(f"API Response: {response.status_code}, {response.text[:500]}")
@@ -180,22 +192,22 @@ def download_reel_with_caption(message):
         if response.status_code == 200:
             data = response.json()
 
-            # Parse based on the provided screenshot structure:
-            # { "status": true, "data": { "media": [ { "url": "...", "thumbnail": "..." } ] } }
-            if data.get("status") and "data" in data and "media" in data["data"]:
-                media_list = data["data"]["media"]
+            # Safely check that data and data["data"] are dictionaries (prevents NoneType is not iterable)
+            inner_data = data.get("data") if isinstance(data, dict) else None
+            if isinstance(data, dict) and data.get("status") and isinstance(inner_data, dict) and "media" in inner_data:
+                media_list = inner_data.get("media")
                 
                 if isinstance(media_list, list) and len(media_list) > 0:
-                    # Get the first media item
                     first_media = media_list[0]
                     
-                    # Extract video URL
-                    if "url" in first_media and first_media["url"]:
-                        video_url = first_media["url"]
-                    
-                    # Extract thumbnail URL
-                    if "thumbnail" in first_media and first_media["thumbnail"]:
-                        thumbnail_url = first_media["thumbnail"]
+                    if isinstance(first_media, dict):
+                        # Extract video URL
+                        if first_media.get("url"):
+                            video_url = first_media["url"]
+                        
+                        # Extract thumbnail URL
+                        if first_media.get("thumbnail"):
+                            thumbnail_url = first_media["thumbnail"]
 
                 if not video_url:
                     bot.edit_message_text(
@@ -206,7 +218,7 @@ def download_reel_with_caption(message):
                     return
             else:
                 bot.edit_message_text(
-                    "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗔𝗣𝗜 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲 𝗶𝘀 𝗲𝗺pty 𝗼𝗿 𝗶𝗻𝘃𝗮𝗹𝗶𝗱.‼",
+                    "‼ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝘃𝗶𝗱𝗲𝗼. 𝗔𝗣𝗜 𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗲 𝗶𝘀 𝗲𝗺𝗽𝘁𝘆 𝗼𝗿 𝗶𝗻𝘃𝗮𝗹𝗶𝗱.‼",
                     chat_id=message.chat.id,
                     message_id=processing_msg.message_id
                 )
@@ -273,7 +285,7 @@ def download_reel_with_caption(message):
             message_id=processing_msg.message_id
         )
 
-@bot.message_handler(func=lambda message: not re.match(r"^(https?://)?(www\.)?instagram\.com/.*$", message.text))
+@bot.message_handler(func=lambda message: not (message.text and re.search(r"(https?://)?(www\.)?instagram\.com/", message.text)))
 def ignore_message(message):
     pass
 
